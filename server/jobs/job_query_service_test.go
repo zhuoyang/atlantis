@@ -102,3 +102,36 @@ func TestJobQueryServiceGetPRLogs(t *testing.T) {
 	assert.Equal(t, "line one\nline two", got[0].Log)
 	assert.True(t, got[0].OperationComplete)
 }
+
+// Fetching a superseded job by its JobID must still report it as stale, because
+// staleness is computed against the job's siblings, not just the filtered result.
+func TestJobQueryServiceStaleJobByJobID(t *testing.T) {
+	baseTime := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	service := jobs.JobQueryService{OutputHandler: queryOutputHandler{
+		mappings: []jobs.PullInfoWithJobIDs{
+			{
+				Pull: jobs.PullInfo{PullNum: 12, RepoFullName: "owner/repo", ProjectName: "prod", Path: "infra/prod", Workspace: "default"},
+				JobIDInfos: []jobs.JobIDInfo{
+					{JobID: "old", JobStep: "plan", Time: baseTime, HeadCommit: "old-sha"},
+					{JobID: "new", JobStep: "plan", Time: baseTime.Add(time.Minute), HeadCommit: "new-sha"},
+				},
+			},
+		},
+		buffers: map[string]jobs.OutputBuffer{
+			"old": {OperationComplete: true, Buffer: []string{"old output"}},
+			"new": {OperationComplete: false, Buffer: []string{"new output"}},
+		},
+	}}
+
+	list := service.ListPRJobs(jobs.JobFilters{JobID: "old"})
+	assert.Len(t, list, 1)
+	assert.Equal(t, "old", list[0].JobID)
+	assert.False(t, list[0].IsLatest)
+	assert.Equal(t, []string{jobs.StaleReasonSupersededByNewerJob}, list[0].StaleReasons)
+
+	logs := service.GetPRLogs(jobs.JobFilters{JobID: "old"})
+	assert.Len(t, logs, 1)
+	assert.Equal(t, "old", logs[0].JobID)
+	assert.False(t, logs[0].IsLatest)
+	assert.Equal(t, []string{jobs.StaleReasonSupersededByNewerJob}, logs[0].StaleReasons)
+}

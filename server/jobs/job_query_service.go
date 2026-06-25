@@ -53,6 +53,13 @@ type JobLog struct {
 func (s JobQueryService) ListPRJobs(filters JobFilters) []Job {
 	jobs := s.collectJobs(filters)
 	markLatest(jobs)
+	// Staleness is computed by markLatest over the full set of sibling jobs, so
+	// the JobID filter must be applied here rather than in collectJobs. Filtering
+	// it earlier would leave a single job in the slice and make markLatest always
+	// mark it latest, even when it has been superseded.
+	if filters.JobID != "" {
+		jobs = filterByJobID(jobs, filters.JobID)
+	}
 	if filters.LatestOnly {
 		jobs = filterLatest(jobs)
 	}
@@ -102,9 +109,6 @@ func (s JobQueryService) collectJobs(filters JobFilters) []Job {
 		}
 
 		for _, info := range mapping.JobIDInfos {
-			if filters.JobID != "" && info.JobID != filters.JobID {
-				continue
-			}
 			if filters.Command != "" && info.JobStep != filters.Command {
 				continue
 			}
@@ -154,6 +158,16 @@ func filterLatest(jobs []Job) []Job {
 		}
 	}
 	return latest
+}
+
+func filterByJobID(jobs []Job, jobID string) []Job {
+	matching := make([]Job, 0, 1)
+	for _, job := range jobs {
+		if job.JobID == jobID {
+			matching = append(matching, job)
+		}
+	}
+	return matching
 }
 
 func sortJobs(jobs []Job) {
