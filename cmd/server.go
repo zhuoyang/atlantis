@@ -115,6 +115,7 @@ const (
 	LogLevelFlag                     = "log-level"
 	MarkdownTemplateOverridesDirFlag = "markdown-template-overrides-dir"
 	MaxCommentsPerCommand            = "max-comments-per-command"
+	MCPEnabledFlag                   = "mcp-enabled"
 	ParallelPoolSize                 = "parallel-pool-size"
 	PendingApplyStatusFlag           = "pending-apply-status"
 	StatsNamespace                   = "stats-namespace"
@@ -566,6 +567,10 @@ var boolFlags = map[string]boolFlag{
 	},
 	IncludeGitUntrackedFiles: {
 		description:  "Include git untracked files in the Atlantis modified file scope.",
+		defaultValue: false,
+	},
+	MCPEnabledFlag: {
+		description:  "Enable the remote HTTP MCP endpoint at /mcp for querying Atlantis plan and apply logs.",
 		defaultValue: false,
 	},
 	ParallelPlanFlag: {

@@ -46,6 +46,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/runatlantis/atlantis/server/controllers"
 	events_controllers "github.com/runatlantis/atlantis/server/controllers/events"
+	mcp_controller "github.com/runatlantis/atlantis/server/controllers/mcp"
 	"github.com/runatlantis/atlantis/server/controllers/web_templates"
 	"github.com/runatlantis/atlantis/server/controllers/websocket"
 	"github.com/runatlantis/atlantis/server/core/locking"
@@ -106,6 +107,7 @@ type Server struct {
 	LocksController                *controllers.LocksController
 	StatusController               *controllers.StatusController
 	JobsController                 *controllers.JobsController
+	MCPController                  *mcp_controller.Controller
 	APIController                  *controllers.APIController
 	IndexTemplate                  web_templates.TemplateWriter
 	LockDetailTemplate             web_templates.TemplateWriter
@@ -963,6 +965,18 @@ func NewServer(userConfig UserConfig, config Config) (*Server, error) {
 		KeyGenerator:             controllers.JobIDKeyGenerator{},
 		StatsScope:               statsScope.SubScope("api"),
 	}
+	var mcpController *mcp_controller.Controller
+	if userConfig.MCPEnabled {
+		if userConfig.APISecret == "" {
+			logger.Warn("mcp endpoint enabled without api secret")
+		}
+		mcpController = mcp_controller.NewController(
+			[]byte(userConfig.APISecret),
+			logger,
+			jobs.JobQueryService{OutputHandler: projectCmdOutputHandler},
+			config.AtlantisVersion,
+		)
+	}
 
 	apiController := &controllers.APIController{
 		APISecret:                      []byte(userConfig.APISecret),
@@ -1034,6 +1048,7 @@ func NewServer(userConfig UserConfig, config Config) (*Server, error) {
 		GithubAppController:            githubAppController,
 		LocksController:                locksController,
 		JobsController:                 jobsController,
+		MCPController:                  mcpController,
 		StatusController:               statusController,
 		APIController:                  apiController,
 		IndexTemplate:                  web_templates.IndexTemplate,
@@ -1082,6 +1097,9 @@ func (s *Server) Start() error {
 		Queries(LockViewRouteIDQueryParam, fmt.Sprintf("{%s}", LockViewRouteIDQueryParam)).Name(LockViewRouteName)
 	s.Router.HandleFunc("/jobs/{job-id}", s.JobsController.GetProjectJobs).Methods("GET").Name(ProjectJobsViewRouteName)
 	s.Router.HandleFunc("/jobs/{job-id}/ws", s.JobsController.GetProjectJobsWS).Methods("GET")
+	if s.MCPController != nil {
+		s.Router.Handle("/mcp", s.MCPController).Methods("GET", "POST", "DELETE")
+	}
 
 	r, ok := s.StatsReporter.(prometheus.Reporter)
 	if ok {

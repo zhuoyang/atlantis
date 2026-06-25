@@ -1077,6 +1077,16 @@ Limit the number of comments published after a command is executed, to prevent s
 
 When command output exceeds the VCS comment size limit (or when this limit applies), Atlantis splits the output into multiple comments using **intelligent comment splitting**. Split points are chosen so that markdown structure is preserved: the splitter detects whether it is inside a code block (`` ``` ``), a `<details>` block, or inline code (`` ` ``), and inserts appropriate closing and continuation markers so that each comment renders correctly. Continuation comments are labeled with the command name (e.g. "Continued plan output from previous comment") when available.
 
+### `--mcp-enabled`
+
+```bash
+atlantis server --mcp-enabled
+# or
+ATLANTIS_MCP_ENABLED=true
+```
+
+Enables the remote HTTP MCP endpoint at `/mcp`. The endpoint exposes tools for querying buffered Atlantis plan and apply logs for a pull request. If `--api-secret` is configured, MCP requests must include the `X-Atlantis-Token` header. If `--web-basic-auth` is enabled, the endpoint is also protected by the existing web basic authentication middleware.
+
 ### `--parallel-apply` <Badge text="v0.22.0+" type="info"/>
 
 ```bash

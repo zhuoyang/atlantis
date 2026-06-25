@@ -302,7 +302,9 @@ func TestCleanUpLogStreaming(t *testing.T) {
 
 		// Assert log streaming resources are cleaned up.
 		dfPrjCmdOutputHandler := prjCmdOutHandler.(*jobs.AsyncProjectCommandOutputHandler)
-		assert.Empty(t, dfPrjCmdOutputHandler.GetProjectOutputBuffer(ctx.PullInfo()))
+		outputBuffer, exists := dfPrjCmdOutputHandler.GetProjectOutputBuffer(ctx.PullInfo())
+		assert.False(t, exists)
+		assert.Empty(t, outputBuffer)
 		assert.Empty(t, dfPrjCmdOutputHandler.GetReceiverBufferForPull(ctx.PullInfo()))
 	})
 }

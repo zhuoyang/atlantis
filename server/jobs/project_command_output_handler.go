@@ -33,6 +33,7 @@ type JobIDInfo struct {
 	Time           time.Time
 	TimeFormatted  string
 	JobStep        string
+	HeadCommit     string
 }
 
 type PullInfoWithJobIDs struct {
@@ -96,6 +97,9 @@ type ProjectCommandOutputHandler interface {
 
 	// Returns a map from Pull Requests to Jobs
 	GetPullToJobMapping() []PullInfoWithJobIDs
+
+	// GetProjectOutputBuffer returns a snapshot of the buffered output for jobID.
+	GetProjectOutputBuffer(jobID string) (OutputBuffer, bool)
 }
 
 func NewAsyncProjectCommandOutputHandler(
@@ -196,12 +200,15 @@ func (p *AsyncProjectCommandOutputHandler) Handle() {
 		}
 		value, _ := p.pullToJobMapping.Load(msg.JobInfo.PullInfo)
 		jobMapping := value.(*sync.Map)
-		jobMapping.Store(msg.JobID, JobIDInfo{
-			JobID:          msg.JobID,
-			JobDescription: msg.JobInfo.JobDescription,
-			Time:           time.Now(),
-			JobStep:        msg.JobInfo.JobStep,
-		})
+		if _, ok := jobMapping.Load(msg.JobID); !ok {
+			jobMapping.Store(msg.JobID, JobIDInfo{
+				JobID:          msg.JobID,
+				JobDescription: msg.JobInfo.JobDescription,
+				Time:           time.Now(),
+				JobStep:        msg.JobInfo.JobStep,
+				HeadCommit:     msg.JobInfo.HeadCommit,
+			})
+		}
 
 		// Forward new message to all receiver channels and output buffer
 		p.writeLogLine(msg.JobID, msg.Line)
@@ -296,10 +303,15 @@ func (p *AsyncProjectCommandOutputHandler) GetReceiverBufferForPull(jobID string
 	return p.receiverBuffers[jobID]
 }
 
-func (p *AsyncProjectCommandOutputHandler) GetProjectOutputBuffer(jobID string) OutputBuffer {
+func (p *AsyncProjectCommandOutputHandler) GetProjectOutputBuffer(jobID string) (OutputBuffer, bool) {
 	p.projectOutputBuffersLock.RLock()
 	defer p.projectOutputBuffersLock.RUnlock()
-	return p.projectOutputBuffers[jobID]
+	buffer, ok := p.projectOutputBuffers[jobID]
+	if !ok {
+		return OutputBuffer{}, false
+	}
+	buffer.Buffer = append([]string(nil), buffer.Buffer...)
+	return buffer, true
 }
 
 func (p *AsyncProjectCommandOutputHandler) GetJobIDMapForPull(pullInfo PullInfo) map[string]JobIDInfo {
@@ -359,4 +371,8 @@ func (p *NoopProjectOutputHandler) IsKeyExists(_ string) bool {
 
 func (p *NoopProjectOutputHandler) GetPullToJobMapping() []PullInfoWithJobIDs {
 	return []PullInfoWithJobIDs{}
+}
+
+func (p *NoopProjectOutputHandler) GetProjectOutputBuffer(_ string) (OutputBuffer, bool) {
+	return OutputBuffer{}, false
 }

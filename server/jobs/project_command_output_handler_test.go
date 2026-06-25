@@ -179,7 +179,9 @@ func TestProjectCommandOutputHandler(t *testing.T) {
 		dfProjectOutputHandler, ok := projectOutputHandler.(*jobs.AsyncProjectCommandOutputHandler)
 		assert.True(t, ok)
 
-		assert.Empty(t, dfProjectOutputHandler.GetProjectOutputBuffer(ctx.JobID))
+		outputBuffer, exists := dfProjectOutputHandler.GetProjectOutputBuffer(ctx.JobID)
+		assert.False(t, exists)
+		assert.Empty(t, outputBuffer)
 		assert.Empty(t, dfProjectOutputHandler.GetReceiverBufferForPull(ctx.JobID))
 		assert.Empty(t, dfProjectOutputHandler.GetJobIDMapForPull(pullContext))
 	})
@@ -210,7 +212,8 @@ func TestProjectCommandOutputHandler(t *testing.T) {
 		dfProjectOutputHandler, ok := projectOutputHandler.(*jobs.AsyncProjectCommandOutputHandler)
 		assert.True(t, ok)
 
-		outputBuffer := dfProjectOutputHandler.GetProjectOutputBuffer(ctx.JobID)
+		outputBuffer, exists := dfProjectOutputHandler.GetProjectOutputBuffer(ctx.JobID)
+		assert.True(t, exists)
 		assert.True(t, outputBuffer.OperationComplete)
 
 		_, ok = (<-ch)
@@ -326,7 +329,7 @@ func TestRaceConditionPrevention(t *testing.T) {
 		for range numGoroutines {
 			wg.Go(func() {
 				// This would race with completeJob() before the RLock fix
-				buffer := handler.(*jobs.AsyncProjectCommandOutputHandler).GetProjectOutputBuffer(ctx.JobID)
+				buffer, _ := handler.(*jobs.AsyncProjectCommandOutputHandler).GetProjectOutputBuffer(ctx.JobID)
 				_ = buffer
 			})
 		}
@@ -403,7 +406,7 @@ func TestHighConcurrencyStress(t *testing.T) {
 					_ = jobMap
 				case 3:
 					// Read project output buffer
-					buffer := handler.(*jobs.AsyncProjectCommandOutputHandler).GetProjectOutputBuffer(ctx.JobID)
+					buffer, _ := handler.(*jobs.AsyncProjectCommandOutputHandler).GetProjectOutputBuffer(ctx.JobID)
 					_ = buffer
 				case 4:
 					// Read receiver buffer
